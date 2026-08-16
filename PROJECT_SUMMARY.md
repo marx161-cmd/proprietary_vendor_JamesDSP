@@ -131,6 +131,43 @@ Tensor chip, not emulated or cross-compiled elsewhere).
   (guard-page + bit-exact review, see `project_jdsp_sve2_fft_optimization`
   notes) — not the subject of this particular A/B.
 
+## Current staged state (2026-08-16) — READ THIS BEFORE ASSUMING WHAT'S ON-DEVICE
+
+**What's actually running on the phone right now**: still the OLD stock
+two-file split — a thin `libjamesdspaidl.so` (427KB) plus a separate
+`libjamesdsp_engine.so`. The single-file merge below (`87f31de`) has
+**never been flashed**. Don't assume the merge is live just because it's
+committed here — it isn't, until a real OTA ships it.
+
+**What's staged in this repo, not yet built or flashed**:
+`proprietary/vendor/lib64/soundfx/libjamesdsp_engine_static.a` was just
+regenerated (ninja target `jamesdsp_static` in
+`~/builds/android/JamesDSP-src/app/.cxx/RelWithDebInfo/4s520615/arm64-v8a/`,
+sha256 `c5e89833...`) from the Gradle source AFTER a `/code-review ultra`
+pass found and fixed real plumbing bugs: a chain-toggle use-after-free in
+`chain_init_static()`, missing `jdsp_lock`/`jdsp_unlock` around
+convolver/DDC/liveprog reload (real audio-thread-vs-AIDL-loader race), and
+a dropped post-benchmark convolver rebuild. Full detail in the
+`RootlessJamesDSP`/`JamesDSPManager` private repos' own commits
+(`d20c7bb`/`d36c8e6`).
+
+**The `libjamesdspaidl.so` sitting in this same directory right now
+(2.7MB) is STALE** — it was linked from the pre-fix static lib
+(timestamped 23:03, before the fix). It has NOT been regenerated from the
+new `.a` above. Don't ship that file as-is.
+
+**What's left before this can actually OTA** (deliberately not done yet,
+per explicit instruction — stage only, no build/flash this session):
+1. `m libjamesdspaidl` (Soong rebuild against the new `.a`) — verify via
+   `readelf -d` (`NEEDED` includes `libbinder_ndk.so`) and
+   `nm -D --defined-only` (`createEffect`/`destroyEffect`/`queryEffect`
+   all present), per `aidl-wrapper/TASK_B_build_integration.md` Step 4.
+2. Full `blazer-ota-build` (not raw `mka bacon`) → boot-chain-patch →
+   `ota_from_target_files` → flash.
+3. On-device verify: `su -c 'setprop ctl.restart audioserver'`, check
+   logcat for the `ASvc::ExternalLibrary` init pattern documented in
+   Step 4 of the same task doc.
+
 ## Publishing plan
 
 Intent is to eventually publish this work publicly (with a beta warning)
