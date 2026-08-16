@@ -1,0 +1,36 @@
+// Standalone offline A/B test harness — drives any libjamesdspaidl.so
+// (stock or modified) through its real IEffect interface without the
+// audioserver, for bit-level audio-signal comparison and speed timing.
+// Not part of the shipped device image; build with:
+//   m jdsp_wav_effect_harness
+cc_binary {
+    name: "jdsp_wav_effect_harness",
+    defaults: [
+        "latest_android_media_audio_common_types_ndk_shared",
+        "latest_android_hardware_audio_effect_ndk_shared",
+    ],
+    vendor: true,
+    srcs: ["wav_effect_harness.cpp"],
+    shared_libs: [
+        "libaudio_aidl_conversion_common_ndk",
+        "libaudioaidlcommon",
+        "libaudioutils",
+        "libbase",
+        "libbinder_ndk",
+        "libcutils",
+        "libfmq",
+        "liblog",
+        "libutils",
+        "android.hardware.common-V2-ndk",
+        "android.hardware.common.fmq-V1-ndk",
+    ],
+    header_libs: [
+        "libaudioaidl_headers",
+        "libaudio_system_headers",
+        "libsystem_headers",
+    ],
+    cflags: [
+        "-Wall",
+        "-Wextra",
+    ],
+}

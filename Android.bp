@@ -11,18 +11,39 @@ android_app_import {
     product_specific: true,
 }
 
-cc_prebuilt_library_shared {
-    name: "libjamesdspaidl",
-    installable: true,
-    strip: {
-        none: true,
-    },
+cc_prebuilt_library_static {
+    name: "libjamesdsp_engine",
     target: {
         android_arm64: {
-            srcs: ["proprietary/vendor/lib64/soundfx/libjamesdspaidl.so"],
-            shared_libs: ["android.hardware.audio.effect-V2-ndk", "android.hardware.common-V2-ndk", "android.hardware.common.fmq-V1-ndk", "android.media.audio.common.types-V3-ndk", "libaudioaidlcommon", "libaudioutils", "libbase", "libbinder_ndk", "libc++", "libc", "libcutils", "libdl", "libfmq", "liblog", "libm", "libutils"],        },
+            srcs: ["proprietary/vendor/lib64/soundfx/libjamesdsp_engine_static.a"],
+        },
     },
     vendor: true,
-    ignore_max_page_size: true,
+}
+
+cc_library_shared {
+    name: "libjamesdspaidl",
+    defaults: ["aidlaudioeffectservice_defaults"],
+    srcs: [
+        "aidl-wrapper/JamesDspAidlEffect.cpp",
+        ":effectCommonFile",
+    ],
+    whole_static_libs: [
+        "libjamesdsp_engine",
+    ],
+    shared_libs: [
+        "liblog",
+    ],
+    header_libs: [
+        "libjamesdsp_engine_headers",
+    ],
     relative_install_path: "soundfx",
+    vendor: true,
+    ignore_max_page_size: true,
+}
+
+cc_library_headers {
+    name: "libjamesdsp_engine_headers",
+    export_include_dirs: ["proprietary/include", "proprietary/include/jdsp"],
+    vendor: true,
 }
