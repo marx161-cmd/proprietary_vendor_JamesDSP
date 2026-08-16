@@ -156,12 +156,22 @@ a dropped post-benchmark convolver rebuild. Full detail in the
 (timestamped 23:03, before the fix). It has NOT been regenerated from the
 new `.a` above. Don't ship that file as-is.
 
+**Update 2026-08-16, same day**: step 1 below is now DONE and verified —
+`m libjamesdspaidl` (isolated, `lunch lineage_blazer bp4a user` first)
+built clean in 2m22s, `readelf -d` confirms `libbinder_ndk.so` + the full
+real AIDL effect stack in `NEEDED`, `nm -D --defined-only` confirms
+`createEffect`/`destroyEffect`/`queryEffect` all present and defined. The
+fixed `libjamesdspaidl.so` this produced (sha256 `cc84cece...`,
+`out/target/product/blazer/vendor/lib64/soundfx/libjamesdspaidl.so`) is
+now copied into this repo's `proprietary/vendor/lib64/soundfx/` as the
+staged reference build. **Still not flashed to the device** — this only
+proves it builds and links correctly, not that it's live. Steps 2-3 below
+remain undone, deliberately, until a real OTA is wanted.
+
 **What's left before this can actually OTA** (deliberately not done yet,
-per explicit instruction — stage only, no build/flash this session):
-1. `m libjamesdspaidl` (Soong rebuild against the new `.a`) — verify via
-   `readelf -d` (`NEEDED` includes `libbinder_ndk.so`) and
-   `nm -D --defined-only` (`createEffect`/`destroyEffect`/`queryEffect`
-   all present), per `aidl-wrapper/TASK_B_build_integration.md` Step 4.
+per explicit instruction — build-verify only, no flash this session):
+1. ~~`m libjamesdspaidl` (Soong rebuild against the new `.a`) — verify via
+   `readelf -d` / `nm -D --defined-only`~~ DONE, see above.
 2. Full `blazer-ota-build` (not raw `mka bacon`) → boot-chain-patch →
    `ota_from_target_files` → flash.
 3. On-device verify: `su -c 'setprop ctl.restart audioserver'`, check
