@@ -4,7 +4,7 @@
 # and verify the sha the HAL process actually sees.
 #   swap_effect.sh <path/to/libjamesdspaidl.so>   |   swap_effect.sh restore
 set -eo pipefail
-DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone's adb address, e.g. 100.x.y.z:5555}"
+DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone adb address, e.g. 100.x.y.z:5555}"
 TARGET=/vendor/lib64/soundfx/libjamesdspaidl.so
 HAL=android.hardware.audio.service-aidl.aoc
 ADB="adb -s $DEV"

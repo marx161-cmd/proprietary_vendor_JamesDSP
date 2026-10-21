@@ -4,7 +4,7 @@
 # Files go to /data/local/tmp/jdsp_difftest; the three older AIDL interface
 # libs stock needs are reused from the 2026-08-16 jdsp_bench dir on-device.
 set -eo pipefail
-DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone's adb address, e.g. 100.x.y.z:5555}"
+DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone adb address, e.g. 100.x.y.z:5555}"
 HARNESS="$1"; SO="$2"; IN="$3"; OUT="$4"; shift 4
 D=/data/local/tmp/jdsp_difftest
 adb -s "$DEV" shell "mkdir -p $D" >/dev/null

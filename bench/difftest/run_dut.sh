@@ -10,3 +10,7 @@ LIM_T=(--cmd 1500 -0.09 5 10 1 0)                       # output limiter at max 
 ./run_device.sh "$H" "$SO" comp.wav    "dut_${TAG}_comp.wav"    --cmd 10101 0 1 -24 4 0.501187 5 100 10 "${LIM_T[@]}"
 ./run_device.sh "$H" "$SO" limiter.wav "dut_${TAG}_limiter.wav" --cmd 1500 -6 5 10 0.5 0
 for m in gate comp limiter; do echo "== $m ($TAG vs real LSP)"; python3 compare.py "ref_$m.wav" "dut_${TAG}_$m.wav"; done
+# Concurrency stress: random gate/compressor/limiter reconfigures ~1 kHz from a second
+# thread for the whole run (not compared to a reference; pass = no crash, finite output).
+echo "== stress ($TAG)"
+./run_device.sh "$H" "$SO" comp.wav "dut_${TAG}_stress.wav" --stress --cmd 10100 0 1 -20 -30 5 50 10 -40 --cmd 10101 0 1 -24 4 0.5 5 100 10 "${LIM_T[@]}" 2>&1 | grep -E "stress:|processed|Segmentation|Abort"

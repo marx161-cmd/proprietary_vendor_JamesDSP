@@ -6,8 +6,8 @@
 set -eo pipefail
 cd "$(dirname "$0")"
 TAG="$1"; SO="$2"; SECS="${3:-60}"
-DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone's adb address, e.g. 100.x.y.z:5555}"; ADB="adb -s $DEV"
-SSH="ssh -o ConnectTimeout=8 ${JDSP_BENCH_SSH:?set JDSP_BENCH_SSH to the Termux ssh target, e.g. -p 8022 system@100.x.y.z}"
+DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone adb address, e.g. 100.x.y.z:5555}"
+SSH="ssh -o ConnectTimeout=8 ${JDSP_BENCH_SSH:?set JDSP_BENCH_SSH to the Termux ssh target, e.g. -p 8022 user@100.x.y.z}"
 mkdir -p results
 ./swap_effect.sh "$SO"
 $ADB shell "cmd media_session volume --stream 3 --set 0" >/dev/null 2>&1 || $ADB shell "media volume --stream 3 --set 0" >/dev/null 2>&1 || true

@@ -18,6 +18,10 @@
 #include <memory>
 #include <vector>
 #include <dlfcn.h>
+#include <atomic>
+#include <thread>
+#include <cmath>
+#include <random>
 
 #include <aidl/android/hardware/audio/effect/IEffect.h>
 #include <aidl/android/hardware/audio/effect/DefaultExtension.h>
@@ -241,8 +245,11 @@ int main(int argc, char** argv) {
     // handed a zero-length blob (it dereferences it -- see the 2026-10-21
     // hardening note), so the default is nullopt, which the AOSP EffectImpl
     // skips cleanly. Scan argv before the --cmd loop below.
-    bool stockOpen = false;
-    for (int ai = 4; ai < argc; ai++) if (strcmp(argv[ai], "--stock") == 0) stockOpen = true;
+    bool stockOpen = false, stress = false;
+    for (int ai = 4; ai < argc; ai++) {
+        if (strcmp(argv[ai], "--stock") == 0) stockOpen = true;
+        if (strcmp(argv[ai], "--stress") == 0) stress = true;
+    }
     IEffect::OpenEffectReturn openRet;
     auto status = stockOpen ? effect->open(common, specific, &openRet)
                             : effect->open(common, std::nullopt, &openRet);
@@ -263,7 +270,7 @@ int main(int argc, char** argv) {
     // legacy effect_param_t layout as jamesdsp.c parses it: three uint32s
     // (status, psize=4, vsize=4*n), then the int32 command id, then n floats.
     for (int ai = 4; ai < argc;) {
-        if (strcmp(argv[ai], "--stock") == 0) { ai++; continue; }
+        if (strcmp(argv[ai], "--stock") == 0 || strcmp(argv[ai], "--stress") == 0) { ai++; continue; }
         if (strcmp(argv[ai], "--cmd") != 0 || ai + 1 >= argc) {
             fprintf(stderr, "bad argument '%s'\n", argv[ai]);
             return 2;
@@ -295,6 +302,45 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // --stress: a second thread re-configures gate/compressor/limiter with
+    // random values ~1000x/s for the whole run, the way a user dragging
+    // sliders (or a Lua script) would, while this thread pushes audio. Exercises
+    // the control->audio parameter handoff (rt_config.h) and the limiter
+    // configure/process race fixed 2026-10-21. Pass = no crash, finite output.
+    std::atomic<bool> stressRun{stress};
+    std::atomic<long> stressCount{0};
+    std::thread stressThread;
+    auto sendCmd = [&](int32_t cmdId, const std::vector<float>& vals) {
+        std::vector<uint8_t> blob(16 + vals.size() * 4);
+        uint32_t hdr[4] = {0u, 4u, static_cast<uint32_t>(vals.size() * 4), static_cast<uint32_t>(cmdId)};
+        memcpy(blob.data(), hdr, 16);
+        memcpy(blob.data() + 16, vals.data(), vals.size() * 4);
+        DefaultExtension ext; ext.bytes = blob;
+        VendorExtension vext; vext.extension.setParcelable(ext);
+        Parameter param = Parameter::make<Parameter::specific>(
+                Parameter::Specific::make<Parameter::Specific::vendorEffect>(vext));
+        return effect->setParameter(param).isOk();
+    };
+    if (stress) {
+        stressThread = std::thread([&] {
+            std::mt19937 rng(161);
+            std::uniform_real_distribution<float> u(0.0f, 1.0f);
+            while (stressRun.load()) {
+                const int which = static_cast<int>(stressCount.load() % 3);
+                bool ok = true;
+                if (which == 0)
+                    ok = sendCmd(1500, {-12.0f * u(rng) - 0.1f, 0.25f + 19.0f * u(rng), 0.25f + 19.0f * u(rng), u(rng), 0.0f, 1.0f});
+                else if (which == 1)
+                    ok = sendCmd(10100, {0.0f, 1.0f, -60.0f * u(rng), -80.0f * u(rng), 2000.0f * u(rng), 5000.0f * u(rng), 1000.0f * u(rng), -72.0f * u(rng)});
+                else
+                    ok = sendCmd(10101, {0.0f, 1.0f, -60.0f * u(rng), 1.0f + 99.0f * u(rng), 1.2f * u(rng) - 0.1f, 2000.0f * u(rng), 5000.0f * u(rng), 1000.0f * u(rng)});
+                if (!ok) fprintf(stderr, "stress: setParameter failed\n");
+                stressCount++;
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            }
+        });
+    }
+
     std::vector<float> outSamples;
     outSamples.reserve(in.samples.size());
     std::vector<float> chunkOut(kFrameCount * 2);
@@ -317,6 +363,14 @@ int main(int argc, char** argv) {
         processed += want;
     }
     auto t1 = std::chrono::steady_clock::now();
+    if (stress) {
+        stressRun.store(false);
+        stressThread.join();
+        size_t bad = 0;
+        for (float v : outSamples) if (!std::isfinite(v)) bad++;
+        fprintf(stderr, "stress: %ld reconfigures during the run, %zu non-finite output samples\n",
+                stressCount.load(), bad);
+    }
     double procMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
     double audioMs = 1000.0 * (in.samples.size() / 2.0) / in.sampleRate;
     fprintf(stderr, "processed %.2fs of audio in %.2fms wall (%.1fx realtime)\n", audioMs / 1000.0,
