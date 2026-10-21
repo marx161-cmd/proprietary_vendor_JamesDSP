@@ -36,4 +36,21 @@ $R run limiter_stereo tmp_comp.wav ref_comp.wav "${LIM_TRANSPARENT[@]}"
 $R run limiter_stereo limiter.wav ref_limiter.wav "${COMMON[@]}" 'Sidechain preamp (G)=1' "${ALR[@]}" 'Operating mode=0' \
   "Threshold (G)=$(lin -6)" "Knee level (G)=$(lin -6)" 'Gain boost=0' 'Lookahead (ms)=5' 'Attack time (ms)=5' 'Release time (ms)=10' \
   'Oversampling=21' 'Dithering=0' 'Sidechain type=0' 'Stereo linking (%)=100' 'Knee smooth (dB)=-5'
-rm -f tmp_gate.wav tmp_comp.wav
+# --- expander (downward): cmd 10103 [0 1 0 -20 2 0.5 20 100 0]
+#     (band, enabled, mode 0=down, threshold dB, ratio, knee LINEAR, attack, release, hold)
+$R run expander_stereo comp.wav tmp_exp.wav "${COMMON[@]}" "${SC[@]}" 'Sidechain input=0' \
+  'Expander mode=0' "Attack threshold (G)=$(lin -20)" 'Attack time (ms)=20' 'Release threshold (G)=0' 'Release time (ms)=100' 'Hold time (ms)=0' \
+  'Ratio=2' 'Knee (G)=0.5' 'Makeup gain (G)=1' 'Dry gain (G)=0' 'Wet gain (G)=1' 'Dry/Wet balance (%)=100'
+$R run limiter_stereo tmp_exp.wav ref_expander.wav "${LIM_TRANSPARENT[@]}"
+# --- autogain: cmd 10104 [0 1 -23 400 20 12 -72 36 0]
+#     (band, enabled, target LUFS, long ms, short ms, drift dB, silence LUFS, max gain dB, max on)
+#     everything else pinned to the real defaults: internal sidechain, 0 dB preamp, 0 lookahead,
+#     K weighting (5), quick amp off, grow/fall amounts 12 dB (index 7), long 500/500 ms, short 40/10 ms
+$R run autogain_stereo comp.wav tmp_ag.wav 'Bypass=0' 'Sidechain preamp (dB)=0' 'Sidechain lookahead (ms)=0' 'Sidechain mode=0' \
+  'Loudness measuring long period (ms)=400' 'Loudness measuring short period (ms)=20' 'Weighting function=5' \
+  'Desired loudness level (LUFS)=-23' 'Level drift (dB)=12' 'The level of silence (LUFS)=-72' \
+  'Enable maximum amplification gain limitation=0' 'The maximum amplification gain (dB)=36' 'Enable quick amplifier=0' \
+  'Long gain grow amount=7' 'Long gain grow time (ms)=500' 'Long gain fall amount=7' 'Long gain fall time (ms)=500' \
+  'Short gain grow amount=7' 'Short gain grow time (ms)=40' 'Short gain fall amount=7' 'Short gain fall time (ms)=10'
+$R run limiter_stereo tmp_ag.wav ref_autogain.wav "${LIM_TRANSPARENT[@]}"
+rm -f tmp_gate.wav tmp_comp.wav tmp_exp.wav tmp_ag.wav
