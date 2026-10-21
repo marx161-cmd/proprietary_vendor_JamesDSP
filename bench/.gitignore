@@ -1,0 +1,4 @@
+# generated/regenerable audio and measurements (gen_signals.py / make_reference.sh / run_dut.sh / run_variant_bench.sh)
+difftest/*.wav
+bench_track.wav
+results/

@@ -171,8 +171,14 @@ static bool readFromFmq(const std::unique_ptr<StatusMQ>& statusMq,
 }
 
 int main(int argc, char** argv) {
-    if (argc != 4) {
-        fprintf(stderr, "usage: %s <libjamesdspaidl.so> <in.wav> <out.wav>\n", argv[0]);
+    if (argc < 4) {
+        fprintf(stderr,
+                "usage: %s <libjamesdspaidl.so> <in.wav> <out.wav> [--stock] [--cmd ID v0 v1 ...]...\n"
+                "  --cmd sends one JamesDSP vendor command after open(): ID is the int32\n"
+                "  command id (e.g. 10100 gate, 10101 compressor, 1500 limiter), v* are the\n"
+                "  float payload values in the exact order jamesdsp.c reads them; vsize =\n"
+                "  4*count, psize = 4. Repeat --cmd for several commands (applied in order).\n",
+                argv[0]);
         return 2;
     }
     const char* soPath = argv[1];
@@ -230,8 +236,16 @@ int main(int argc, char** argv) {
     vendorExt.extension.setParcelable(emptyExt);
     Parameter::Specific specific = Parameter::Specific::make<Parameter::Specific::vendorEffect>(vendorExt);
 
+    // --stock: stock's EffectImpl::open() null-derefs on std::nullopt, so pass
+    // the empty blob above. Our engine (jamesdsp.c SET_PARAM path) must NOT be
+    // handed a zero-length blob (it dereferences it -- see the 2026-10-21
+    // hardening note), so the default is nullopt, which the AOSP EffectImpl
+    // skips cleanly. Scan argv before the --cmd loop below.
+    bool stockOpen = false;
+    for (int ai = 4; ai < argc; ai++) if (strcmp(argv[ai], "--stock") == 0) stockOpen = true;
     IEffect::OpenEffectReturn openRet;
-    auto status = effect->open(common, specific, &openRet);
+    auto status = stockOpen ? effect->open(common, specific, &openRet)
+                            : effect->open(common, std::nullopt, &openRet);
     if (!status.isOk()) {
         fprintf(stderr, "open() failed: %s\n", status.getDescription().c_str());
         return 1;
@@ -244,6 +258,36 @@ int main(int argc, char** argv) {
     auto statusMq = std::make_unique<StatusMQ>(openRet.statusMQ);
     auto inputMq = std::make_unique<DataMQ>(openRet.inputDataMQ);
     auto outputMq = std::make_unique<DataMQ>(openRet.outputDataMQ);
+
+    // Optional vendor commands (--cmd ID v0 v1 ...). The blob is stock's
+    // legacy effect_param_t layout as jamesdsp.c parses it: three uint32s
+    // (status, psize=4, vsize=4*n), then the int32 command id, then n floats.
+    for (int ai = 4; ai < argc;) {
+        if (strcmp(argv[ai], "--stock") == 0) { ai++; continue; }
+        if (strcmp(argv[ai], "--cmd") != 0 || ai + 1 >= argc) {
+            fprintf(stderr, "bad argument '%s'\n", argv[ai]);
+            return 2;
+        }
+        int32_t cmdId = static_cast<int32_t>(strtol(argv[ai + 1], nullptr, 10));
+        std::vector<float> vals;
+        int aj = ai + 2;
+        for (; aj < argc && strcmp(argv[aj], "--cmd") != 0; aj++) vals.push_back(strtof(argv[aj], nullptr));
+        std::vector<uint8_t> blob(16 + vals.size() * 4);
+        uint32_t hdr[4] = {0u, 4u, static_cast<uint32_t>(vals.size() * 4), static_cast<uint32_t>(cmdId)};
+        memcpy(blob.data(), hdr, 16);
+        if (!vals.empty()) memcpy(blob.data() + 16, vals.data(), vals.size() * 4);
+        DefaultExtension ext;
+        ext.bytes = blob;
+        VendorExtension vext;
+        vext.extension.setParcelable(ext);
+        Parameter param = Parameter::make<Parameter::specific>(
+                Parameter::Specific::make<Parameter::Specific::vendorEffect>(vext));
+        auto st = effect->setParameter(param);
+        fprintf(stderr, "cmd %d (%zu floats): %s\n", cmdId, vals.size(),
+                st.isOk() ? "ok" : st.getDescription().c_str());
+        if (!st.isOk()) return 1;
+        ai = aj;
+    }
 
     status = effect->command(CommandId::START);
     if (!status.isOk()) {
@@ -287,7 +331,10 @@ int main(int argc, char** argv) {
 
     effect->command(CommandId::STOP);
     effect->close();
-    dlclose(handle);
+    // No dlclose(): the engine's worker threads / thread-locals outlive close()
+    // in this one-shot process and dlclose() then faults in main's epilogue
+    // (seen 2026-10-21, both stock and ours). The OS reclaims it at exit.
+    (void)handle;
 
     return wrote ? 0 : 1;
 }
