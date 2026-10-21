@@ -8,12 +8,29 @@ DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone adb address, e.g. 1
 TARGET=/vendor/lib64/soundfx/libjamesdspaidl.so
 HAL=android.hardware.audio.service-aidl.aoc
 ADB="adb -s $DEV"
+# Clear every existing layer first. /data and /vendor are shared mounts, so a
+# plain `mount --bind src target` used to propagate onto the previous source
+# file's path as well (stacks of 60+ layers were seen); lazy-unmount all of them
+# (the running HAL keeps its mapping until it is restarted) and make the new
+# mount private so it cannot propagate again.
+clear_layers() {
+  $ADB shell "su -c 'for n in 1 2 3 4 5 6 7 8 9 10; do
+      P=\$(awk \"\\\$5 ~ /soundfx\\/libjamesdspaidl.so|jdsp_variants/ {print \\\$5}\" /proc/1/mountinfo | sort -u);
+      [ -z \"\$P\" ] && break;
+      for m in \$P; do nsenter -t 1 -m -- umount -l \"\$m\" 2>/dev/null; done; done;
+    echo remaining layers: \$(grep -c -E \"soundfx/libjamesdspaidl.so|jdsp_variants\" /proc/1/mountinfo)'"
+}
 if [[ "$1" == "restore" ]]; then
-  $ADB shell "su -c 'nsenter -t 1 -m -- umount $TARGET 2>/dev/null; echo unmounted'"
+  clear_layers
 else
-  SRC="$1"; NAME=$(basename "$(dirname "$SRC")")_$(basename "$SRC")
+  SRC="$1"; SHA8=$(sha256sum "$SRC" | cut -c1-8)
+  NAME=$(basename "$(dirname "$SRC")")_${SHA8}.so
+  clear_layers
   $ADB push "$SRC" "/data/local/tmp/jdsp_variants/$NAME" >/dev/null
-  $ADB shell "su -c 'chcon u:object_r:vendor_file:s0 /data/local/tmp/jdsp_variants/$NAME; chmod 644 /data/local/tmp/jdsp_variants/$NAME; nsenter -t 1 -m -- umount $TARGET 2>/dev/null; nsenter -t 1 -m -- mount --bind /data/local/tmp/jdsp_variants/$NAME $TARGET && echo bound'"
+  $ADB shell "su -c 'chcon u:object_r:vendor_file:s0 /data/local/tmp/jdsp_variants/$NAME; chmod 644 /data/local/tmp/jdsp_variants/$NAME;
+    nsenter -t 1 -m -- mount --bind /data/local/tmp/jdsp_variants/$NAME $TARGET && nsenter -t 1 -m -- mount -o private none $TARGET && echo bound $NAME'"
+  GOT=$($ADB shell "su -c 'sha256sum /proc/1/root$TARGET'" | tr -d '\r' | cut -c1-8)
+  [[ "$GOT" == "$SHA8" ]] || { echo "ERROR: init sees $GOT, wanted $SHA8"; exit 2; }
 fi
 # Optional: libraries the variant needs that the firmware no longer ships (the
 # stock crDroid prebuilt links android.hardware.audio.effect-V2-ndk.so and

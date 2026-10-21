@@ -1,0 +1,45 @@
+Cmdline: /system/bin/simpleperf record -p 16043 -f 2000 -g --duration 30 -o /data/local/tmp/jdsp_variants/perf-full.data
+Arch: arm64
+Event: cpu-cycles (type 0, config 0)
+Samples: 15052
+Event count: 4787480874
+
+Overhead  Sample  Shared Object                                                                           Symbol
+9.50%     1376    /vendor/lib64/soundfx/libjamesdspaidl.so                                                FFTConvolver2x2Process
+9.41%     1374    /vendor/lib64/soundfx/libjamesdspaidl.so                                                JamesDSPProcess
+6.28%     859     [kernel.kallsyms]                                                                       _raw_spin_unlock_irqrestore
+6.07%     800     /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      Eigen::internal::kiss_cpx_fft<float>::bfly4(std::__1::complex<float>*, unsigned long, unsigned long)
+5.30%     816     /vendor/lib64/soundfx/libjamesdspaidl.so                                                DFT256
+5.29%     909     /vendor/lib64/soundfx/libjamesdspaidl.so                                                lsp::dspu::Limiter::process(float*, float const*, unsigned long)
+5.27%     776     /vendor/lib64/soundfx/libjamesdspaidl.so                                                DFT2048_x2
+3.98%     587     /vendor/lib64/soundfx/libjamesdspaidl.so                                                DFT256_x2
+3.93%     598     /vendor/lib64/soundfx/libjamesdspaidl.so                                                TwoStageFFTConvolver2x2Process
+2.85%     433     /vendor/lib64/soundfx/libjamesdspaidl.so                                                lsp::asimd::fmadd_k3(float*, float const*, float, unsigned long)
+2.80%     426     /vendor/lib64/soundfx/libjamesdspaidl.so                                                NSEEL_code_execute
+2.45%     359     /vendor/lib64/soundfx/libjamesdspaidl.so                                                DDCProcess
+2.33%     288     /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      dp_fx::DPFrequency::processChannelBuffers(std::__1::vector<dp_fx::ChannelBuffer, std::__1::allocator<dp_fx::ChannelBuffer> >&)
+1.29%     177     /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      dp_fx::DPFrequency::processSamples(float const*, float*, unsigned long)
+1.22%     199     /vendor/lib64/soundfx/libjamesdspaidl.so                                                LiveProgProcess
+1.17%     140     /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      void Eigen::internal::kiss_cpx_fft<float>::work<std::__1::complex<float> >(int, std::__1::complex<float>*, std::__1::complex<float> const*, unsigned long, unsigned long)
+1.14%     190     /vendor/lib64/soundfx/libjamesdspaidl.so                                                lua_getglobal
+1.14%     140     /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      dp_fx::DPFrequency::processFirstStages(dp_fx::ChannelBuffer&)
+0.93%     186     [kernel.kallsyms]                                                                       __schedule
+0.93%     143     /vendor/lib64/soundfx/libjamesdspaidl.so                                                lsp::asimd::copy(float*, float const*, unsigned long)
+0.84%     111     /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      Eigen::internal::kissfft_impl<float>::fwd(std::__1::complex<float>*, float const*, int)
+0.82%     111     /vendor/lib64/soundfx/libjamesdspaidl.so                                                lsp_limiter_process
+0.76%     114     /apex/com.android.runtime/lib64/bionic/libc.so                                          __memmove_aarch64_simd
+0.67%     440     [kernel.kallsyms]                                                                       finish_task_switch
+0.65%     124     /apex/com.android.runtime/lib64/bionic/libc.so                                          __strcmp_aarch64
+0.64%     86      /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      Eigen::internal::kissfft_impl<float>::inv(float*, std::__1::complex<float> const*, int)
+0.61%     109     [kernel.kallsyms]                                                                       handle_softirqs
+0.61%     85      /vendor/lib64/soundfx/libjamesdspaidl.so                                                lua_bridge_process_sample
+0.44%     64      /vendor/lib64/soundfx/libjamesdspaidl.so                                                @plt
+0.42%     55      [kernel.kallsyms]                                                                       local_daif_restore
+0.41%     71      /vendor/lib64/soundfx/libjamesdspaidl.so                                                lsp::asimd::abs_mul3(float*, float const*, float const*, unsigned long)
+0.33%     52      /apex/com.android.runtime/lib64/bionic/libc.so                                          syscall
+0.32%     36      /vendor/lib64/soundfx/libdynamicsprocessingaidl.so                                      void Eigen::FFT<float, Eigen::default_fft_impl<float> >::fwd<Eigen::Matrix<float, -1, 1, 0, -1, 1>, Eigen::Matrix<std::__1::complex<float>, -1, 1, 0, -1, 1> >(Eigen::MatrixBase<Eigen::Matrix<std::__1::complex<float>, -1, 1, 0, -1, 1> >&, Eigen::MatrixBase<Eigen::Matrix<float, -1, 1, 0, -1, 1> > const&, long)
+0.29%     55      /vendor/lib64/soundfx/libjamesdspaidl.so                                                lsp::asimd::max_index(float const*, unsigned long)
+0.27%     39      /vendor/lib64/soundfx/libjamesdspaidl.so                                                luaV_finishget
+0.25%     29      /apex/com.android.runtime/lib64/bionic/libc.so                                          isinf
+0.24%     30      /apex/com.android.runtime/lib64/bionic/libc.so                                          __memset_aarch64
+0.23%     31      /vendor/lib64/soundfx/libjamesdspaidl.so                                                pfloat32Multiplexed

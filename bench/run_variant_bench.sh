@@ -10,6 +10,7 @@ DEV="${JDSP_BENCH_DEVICE:?set JDSP_BENCH_DEVICE to the phone adb address, e.g. 1
 ADB="adb -s $DEV"
 SSH="ssh -o ConnectTimeout=8 ${JDSP_BENCH_SSH:?set JDSP_BENCH_SSH to the Termux ssh target, e.g. -p 8022 user@100.x.y.z}"
 mkdir -p results
+$ADB push sample_hal.sh /data/local/tmp/jdsp_variants/sample_hal.sh >/dev/null
 ./swap_effect.sh "$SO"
 PREV_VOL=$($SSH 'termux-volume' | python3 -c 'import sys,json; print([s["volume"] for s in json.load(sys.stdin) if s["stream"]=="music"][0])')
 $SSH "termux-volume music 0" >/dev/null 2>&1
@@ -32,15 +33,23 @@ $ADB shell "am force-stop com.termux.vlc; am force-stop com.termux.jdsp" >/dev/n
 $ADB shell "am start -W -n $JDSP_ACT" >/dev/null 2>&1
 sleep 4
 $ADB shell "am start -W -a android.intent.action.VIEW -d file:///sdcard/Music/bench_track.wav -t audio/x-wav -n $VLC_ACT" >/dev/null 2>&1
-for i in $(seq 1 75); do
+vlc_state() { $ADB shell 'dumpsys media_session' 2>/dev/null | tr -d '\r' | grep -A14 'package=com.termux.vlc' | grep -oE 'state=[A-Z]+' | head -1; }
+for i in $(seq 1 90); do
   sleep 1
   AF=$($ADB shell "dumpsys media.audio_flinger" 2>/dev/null | tr -d '\r')
   M=$(echo "$AF" | grep -c -E "JamesDSP|f27317f4" || true)
-  [[ $((i % 15)) -eq 0 ]] && echo "  wait $i s: dump ${#AF} bytes, effect lines $M, vlc $($ADB shell 'dumpsys media_session' 2>/dev/null | grep -A1 'package=com.termux.vlc' | grep -oE 'state=[A-Z]+' | head -1)"
-  if [[ "$M" -gt 0 ]]; then break; fi
+  ACT=$(echo "$AF" | grep -c 'Standby: no' || true)   # an output thread is actually mixing
+  if [[ $((i % 10)) -eq 0 ]]; then echo "  wait $i s: dump ${#AF} bytes, effect lines $M, active threads $ACT, vlc $(vlc_state)"; fi
+  if [[ "$M" -gt 0 && "$ACT" -gt 0 ]]; then break; fi
+  # The JamesDSP root service gives up ("Plugin not installed") if it started
+  # before audioserver finished coming back; kick it again every 25 s.
+  if [[ $((i % 25)) -eq 0 ]]; then
+    echo "  effect still missing, relaunching the JamesDSP app"
+    $ADB shell "am force-stop com.termux.jdsp; am start -W -n $JDSP_ACT" >/dev/null 2>&1
+  fi
 done
-if ! echo "$AF" | grep -q -E "JamesDSP|f27317f4"; then
-  echo "ABORT: no JamesDSP effect in audio_flinger after 75 s. JamesDSP service log:"
+if [[ "${M:-0}" -eq 0 || "${ACT:-0}" -eq 0 ]]; then
+  echo "ABORT: no JamesDSP effect / no active output in audio_flinger after 90 s (vlc $(vlc_state)). JamesDSP service log:"
   $ADB shell "logcat -d -t 400 --pid=\$(pidof com.termux.jdsp)" 2>/dev/null | grep -E "RootAudioProcessor|SessionReceiver" | tail -5 | cut -c1-160
   [[ -n "$PREV_VOL" ]] && $SSH "termux-volume music $PREV_VOL" >/dev/null 2>&1
   exit 3
