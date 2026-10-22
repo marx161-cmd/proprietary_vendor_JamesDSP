@@ -20,8 +20,10 @@ in both, so either file drops in without a header re-sync.
 
 ## What changed vs stock (engine)
 
-1. **Faithful LSP-plugins ports** of Gate, Compressor, Limiter, Expander (new module)
-   and AutoGain (replaces the legacy integrator) replace the previous
+1. **Faithful LSP-plugins ports** of Gate, Compressor, Limiter, Expander (new module),
+   AutoGain (replaces the legacy integrator) and Loudness Compensator (new module,
+   ISO 226 / Fletcher-Munson / Robinson-Dadson equal-loudness contours, FFT or IIR
+   mode, last stage before the output limiter) replace the previous
    hand-written wrappers around the bare `lsp::dspu` primitives. The DSP primitive
    classes are compiled unchanged from the pinned lsp-plugins submodules; the ~1700
    lines of plugin-level logic (`update_settings()` / `process()`) are transliterated
@@ -50,8 +52,12 @@ in both, so either file drops in without a header re-sync.
   48 kHz signals through this `.so` on the phone (real AIDL/FMQ path) and through the
   Fedora `lsp-plugins-ladspa` build of the same plugins on a PC with identical settings.
   Residual vs the real plugin (RMS, dBFS, final binaries, 2026-10-21): gate -110,
-  compressor -114, limiter (ALR on) -137, expander -108, autogain -89. Audio-only and
-  full produce identical output.
+  compressor -114, limiter (ALR on) -137, expander -108, autogain -89, loudness
+  compensator (FFT mode) -112. Audio-only and full produce identical output. The
+  compensator's IIR mode matches to -30 dB only, which is the real plugin's own
+  numerical floor: the unmodified x86 plugin differs from itself by -31.5 dB between
+  an AVX2 and an SSE4.2 run (float32 biquads with poles at |z| = 0.997 in the
+  sub-80 Hz sections); its FFT mode differs by -115 dB in the same experiment.
 - **On-device CPU / power** (`bench/`): audio HAL process CPU and battery draw while
   playing the same track with the same user preset, stock vs audio-only vs full.
   Pixel 10 Pro, 60 s of the same track, screen off, unplugged, user preset

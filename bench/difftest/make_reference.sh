@@ -53,4 +53,23 @@ $R run autogain_stereo comp.wav tmp_ag.wav 'Bypass=0' 'Sidechain preamp (dB)=0' 
   'Long gain grow amount=7' 'Long gain grow time (ms)=500' 'Long gain fall amount=7' 'Long gain fall time (ms)=500' \
   'Short gain grow amount=7' 'Short gain grow time (ms)=40' 'Short gain fall amount=7' 'Short gain fall time (ms)=10'
 $R run limiter_stereo tmp_ag.wav ref_autogain.wav "${LIM_TRANSPARENT[@]}"
-rm -f tmp_gate.wav tmp_comp.wav tmp_exp.wav tmp_ag.wav
+# --- loudcomp (FFT): cmd 10105 [0 1 0 0 4 4 2 -30 0 6]
+#     (band, enabled, input gain dB, mode 0=FFT, std 4=ISO226-2023, fft idx 4=4096, approx 2=Normal,
+#      volume -30 phons, hclip off, hcrange 6 dB). Reference generator off, indicators/meters are outputs.
+#     Both plugins carry 1<<12 = 4096 samples of FFT latency, so compare.py sees lag ~0 between them.
+LC_COMMON=('Bypass=0' 'Input gain (G)=1' 'Loudness contour standard=4' 'FFT size=4' 'IIR approximation=2' \
+  'Output volume (dB)=-30' 'Enable reference generator=0' 'Type of reference generator=2' \
+  'Hard-clipping enable=0' 'Hard-clipping range (dB)=6' 'Clean hard-clipping indicators=0' \
+  'Equalization curve is shown relative to the volume=0')
+$R run loud_comp_stereo loudcomp.wav tmp_lc.wav "${LC_COMMON[@]}" 'Processing mode=0'
+$R run limiter_stereo tmp_lc.wav ref_loudcomp.wav "${LIM_TRANSPARENT[@]}"
+# --- loudcomp (IIR): cmd 10105 [0 1 0 1 4 4 2 -30 0 6]  (mode 1=IIR, approx 2 = 32 filters, slope 3)
+#     EXPECTED FLOOR ~-30 dB, not -80 (measured 2026-10-22): the IIR path is 32 float32 biquad
+#     cascades whose lowest sections (22..80 Hz low-shelf/ladder, poles at |z|~0.997) amplify
+#     rounding noise; the error vs reference is -22 dB at 20-28 Hz falling to -77 dB at 14-20 kHz.
+#     Proof it is the reference's own numerics, not the port: the SAME x86 LADSPA plugin run natively
+#     (AVX2/FMA dsp-lib path) vs under `qemu-x86_64-static -cpu Nehalem` (SSE4.2, no FMA) differs by
+#     -31.5 dB in IIR mode and -115.1 dB in FFT mode. Compare loudcomp_iir runs against ~-30 dB.
+$R run loud_comp_stereo loudcomp.wav tmp_lci.wav "${LC_COMMON[@]}" 'Processing mode=1'
+$R run limiter_stereo tmp_lci.wav ref_loudcomp_iir.wav "${LIM_TRANSPARENT[@]}"
+rm -f tmp_gate.wav tmp_comp.wav tmp_exp.wav tmp_ag.wav tmp_lc.wav tmp_lci.wav

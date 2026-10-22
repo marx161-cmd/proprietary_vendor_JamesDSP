@@ -4,6 +4,9 @@ One file per module so each comparison isolates one algorithm:
   gate.wav     tone bursts (-12 dBFS) over a -55 dBFS noise floor; gate opens/closes
   comp.wav     pink noise, slow AM sweep -40 .. -6 dBFS; compressor rides the envelope
   limiter.wav  pink noise at -12 dBFS with 2 ms clicks to -1 dBFS; limiter catches peaks
+  loudcomp.wav pink noise at -30 dBFS under a 20 Hz..20 kHz exponential sine sweep at
+               -24 dBFS; the sweep walks the whole equal-loudness curve, peak ~-20 dBFS
+               so even +10 dB of curve gain stays clear of the output limiter's ALR knee
 Peaks stay < -6 dBFS in gate.wav/comp.wav so an always-on limiter at -0.09 dB never engages.
 """
 import numpy as np, soundfile as sf, os
@@ -48,5 +51,13 @@ for k in range(1, 16):
     i0 = int(k*0.5*sr); seg = slice(i0, i0+96)
     l[seg] = db(-1)*np.sign(l[seg] + 1e-9)
 sf.write(f"{out}/limiter.wav", stereo(l), sr, subtype='FLOAT')
-for f in ("gate","comp","limiter"):
+
+# loudcomp: 10 s pink at -30 dBFS + exponential sweep 20 Hz -> 20 kHz at -24 dBFS
+# (appended after the others so the rng stream, hence the files above, is unchanged)
+n = sr*10; t = np.arange(n)/sr
+f0, f1, T = 20.0, 20000.0, 10.0
+phase = 2*np.pi*f0*T/np.log(f1/f0)*(np.exp(t/T*np.log(f1/f0)) - 1)
+lc = pink(n)*db(-30) + db(-24)*np.sin(phase)
+sf.write(f"{out}/loudcomp.wav", stereo(lc), sr, subtype='FLOAT')
+for f in ("gate","comp","limiter","loudcomp"):
     d, _ = sf.read(f"{out}/{f}.wav"); print(f, d.shape, "peak dBFS %.1f" % (20*np.log10(np.max(np.abs(d)))))

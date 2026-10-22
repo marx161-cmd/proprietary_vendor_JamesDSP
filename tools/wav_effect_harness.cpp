@@ -302,11 +302,13 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // --stress: a second thread re-configures gate/compressor/limiter with
-    // random values ~1000x/s for the whole run, the way a user dragging
+    // --stress: a second thread re-configures gate/compressor/limiter/loudcomp
+    // with random values ~1000x/s for the whole run, the way a user dragging
     // sliders (or a Lua script) would, while this thread pushes audio. Exercises
     // the control->audio parameter handoff (rt_config.h) and the limiter
-    // configure/process race fixed 2026-10-21. Pass = no crash, finite output.
+    // configure/process race fixed 2026-10-21; for loudcomp (cmd 10105,
+    // 2026-10-22) also the FFT rank / FFT<->IIR / curve switching that the
+    // audio thread applies itself. Pass = no crash, finite output.
     std::atomic<bool> stressRun{stress};
     std::atomic<long> stressCount{0};
     std::thread stressThread;
@@ -326,14 +328,18 @@ int main(int argc, char** argv) {
             std::mt19937 rng(161);
             std::uniform_real_distribution<float> u(0.0f, 1.0f);
             while (stressRun.load()) {
-                const int which = static_cast<int>(stressCount.load() % 3);
+                const int which = static_cast<int>(stressCount.load() % 4);
                 bool ok = true;
                 if (which == 0)
                     ok = sendCmd(1500, {-12.0f * u(rng) - 0.1f, 0.25f + 19.0f * u(rng), 0.25f + 19.0f * u(rng), u(rng), 0.0f, 1.0f});
                 else if (which == 1)
                     ok = sendCmd(10100, {0.0f, 1.0f, -60.0f * u(rng), -80.0f * u(rng), 2000.0f * u(rng), 5000.0f * u(rng), 1000.0f * u(rng), -72.0f * u(rng)});
-                else
+                else if (which == 2)
                     ok = sendCmd(10101, {0.0f, 1.0f, -60.0f * u(rng), 1.0f + 99.0f * u(rng), 1.2f * u(rng) - 0.1f, 2000.0f * u(rng), 5000.0f * u(rng), 1000.0f * u(rng)});
+                else // loudcomp: [band, en, in gain dB, mode, std, fft idx, approx, volume phons, hclip, hcrange dB]
+                    ok = sendCmd(10105, {0.0f, 1.0f, 48.0f * u(rng) - 24.0f, std::floor(2.0f * u(rng)), std::floor(5.0f * u(rng)),
+                                         std::floor(7.0f * u(rng)), std::floor(5.0f * u(rng)), 90.0f * u(rng) - 83.0f,
+                                         std::floor(2.0f * u(rng)), 24.0f * u(rng)});
                 if (!ok) fprintf(stderr, "stress: setParameter failed\n");
                 stressCount++;
                 std::this_thread::sleep_for(std::chrono::microseconds(100));
