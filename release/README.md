@@ -118,6 +118,18 @@ Flash as an APatch/KernelSU module that overlays `/vendor/lib64/soundfx/libjames
 or bind-mount it for a RAM-only trial (`bench/swap_effect.sh`). Built for crDroid 16
 on blazer; other devices need the AIDL wrapper rebuilt in their own vendor tree.
 
-Proof of concept, not maintained. Sources: RootlessJamesDSP fork (app + CMake host),
-JamesDSPManager fork (engine), proprietary_vendor_JamesDSP fork (AIDL wrapper, Soong
-glue, these builds). Licenses: GPL-3.0 (JamesDSP), LGPL-3.0 (lsp-plugins).
+Proof of concept, not maintained.
+
+## Related repositories (what it takes to run this stack)
+
+| repo | role |
+|---|---|
+| [marx161-cmd/proprietary_vendor_JamesDSP](https://github.com/marx161-cmd/proprietary_vendor_JamesDSP) | this repo: AIDL effect wrapper, Soong glue, these builds, bench/difftest, `tools/desk-send` |
+| [marx161-cmd/JamesDSPManager](https://github.com/marx161-cmd/JamesDSPManager) | the engine (`libjamesdsp`): LSP faithful ports, SVE2 FFT, 108-band meter, output tap |
+| [marx161-cmd/RootlessJamesDSP](https://github.com/marx161-cmd/RootlessJamesDSP) | the app (preference cards for every port, limiter toggle, Desk send) and the CMake host that builds the engine |
+| [marx161-cmd/ShaderEditor](https://github.com/marx161-cmd/ShaderEditor) | consumer of the `full` variant's `bands.bin` v3 (band samplers + `u_*` feature uniforms for live-wallpaper shaders); without it the `full` variant has no reason to exist |
+| [marx161-cmd/termux-app](https://github.com/marx161-cmd/termux-app) | the platform-signed Termux family this ROM runs (`com.termux.*`, shared UID); the app ships as `com.termux.jdsp` inside it and the Desk send sender runs in this Termux |
+| [marx161-cmd/easyeffects-shader-bands](https://github.com/marx161-cmd/easyeffects-shader-bands) | the desktop EasyEffects analyser whose Butterworth design the phone meter mirrors (same bands, same cooked frame) |
+| [marx161-cmd/audio-reactive-shaders](https://github.com/marx161-cmd/audio-reactive-shaders) | the shaders that consume both feeds |
+
+Licenses: JamesDSP engine GPL-2 (upstream LICENSE text), RootlessJamesDSP GPL-3, lsp-plugins LGPL-3.
