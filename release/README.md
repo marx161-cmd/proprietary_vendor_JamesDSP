@@ -82,9 +82,13 @@ archive it was linked from by bare file name.
   | stock | 60.9 | 2184 mW |
   | audio-only | 23.9 | 1764 mW |
   | full (meter + Lua bridge) | 27.7 | 1824 mW |
+  | full, 2026-10-22 evening build (Butterworth meter v3 + SCHED_FIFO effect thread, `bec5b319`) | 28.6 | 1606 mW |
 
-  The full row predates the 2026-10-22 meter redesign (336 biquads per sample instead of
-  108, plus seven named-range filters); re-measure before quoting it for the current build.
+  The last row is the current build (336 biquads per sample instead of 108, plus seven
+  named-range filters, effect thread SCHED_FIFO 5): the meter redesign costs under one
+  percentage point. Measured with the user's rewritten "Pixelbuds Full" preset and the
+  phone unplugged (`bench/results/full_v3.csv`); the three rows above used the earlier
+  preset, so compare the draw column only loosely.
 
   The CPU column is the HAL process's utime+stime over the window; the draw column is
   the battery fuel gauge (everything on the phone, not just audio), one run each. The
