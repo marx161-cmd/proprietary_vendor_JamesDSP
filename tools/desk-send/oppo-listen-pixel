@@ -1,0 +1,37 @@
+#!/data/data/com.termux/files/usr/bin/bash
+# Twin of listen-amd for the Pixel's JamesDSP desk-send tap (vendor/JamesDSP
+# SCOPE 2026-10-22): raw s16le 48 kHz stereo on udp :1237 into the same pulse
+# sink as the comrade stream; pulse mixes the two additively.
+set -u
+command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock || true
+CONFIG_FILE="$HOME/.config/oppo-pixel-audio.env"
+if [[ -f "$CONFIG_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$CONFIG_FILE"
+fi
+PORT="${PORT:-1237}"
+AUDIO_DELAY_MS="${AUDIO_DELAY_MS:-0}"
+build_delay_args() {
+  local ms="$1"
+  if [[ "$ms" =~ ^[0-9]+$ ]] && (( ms > 0 )); then
+    printf -- "-af adelay=%s|%s" "$ms" "$ms"
+  fi
+}
+ensure_pulse() {
+  pactl info >/dev/null 2>&1 && return 0
+  rm -f "$HOME"/.config/pulse/*.pid "$HOME"/.config/pulse/*-runtime/pid 2>/dev/null || true
+  pkill -x pulseaudio >/dev/null 2>&1 || true
+  pulseaudio --start --exit-idle-time=-1 >/dev/null 2>&1 || true
+  sleep 0.5
+  pactl info >/dev/null 2>&1
+}
+while true; do
+  ensure_pulse || { sleep 1; continue; }
+  delay_args="$(build_delay_args "$AUDIO_DELAY_MS" || true)"
+  # shellcheck disable=SC2086
+  ffplay -hide_banner -loglevel warning -nodisp \
+    -f s16le -ar 48000 -ch_layout stereo \
+    -fflags nobuffer -sync audio $delay_args \
+    "udp://@:${PORT}" || true
+  sleep 1
+done

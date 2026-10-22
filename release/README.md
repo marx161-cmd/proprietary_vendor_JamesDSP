@@ -10,7 +10,7 @@ comparison. Everything is built from source in the three repos listed at the end
 | dir | what | sha256 (first 8) |
 |---|---|---|
 | `audio/` | **audio-only**: the DSP changes below, nothing else. No Lua interpreter, no analysis meter, no file I/O from inside the effect. | see `audio/SHA256SUMS` |
-| `full/` | audio-only + embedded Lua 5.4 bridge + 108-band meter written to a shared file for a live-wallpaper consumer (since 2026-10-22: Butterworth bank with the same design as comrade's EasyEffects shader_bands plugin, plus a dB-mapped frame and rms/named-range/centroid/flux/onset features, `bands.bin` v3). Only useful with that consumer. | see `full/SHA256SUMS` |
+| `full/` | audio-only + embedded Lua 5.4 bridge + 108-band meter written to a shared file for a live-wallpaper consumer (since 2026-10-22: Butterworth bank with the same design as comrade's EasyEffects shader_bands plugin, plus a dB-mapped frame and rms/named-range/centroid/flux/onset features, `bands.bin` v3), plus the "Desk send" output tap (`tap.bin` int16 ring, cmd 10107, see `tools/desk-send/README.md`). Only useful with those consumers. | see `full/SHA256SUMS` |
 | `full-shipped/` | the `full` build as shipped in the 2026-10-10 OTA (11 days daily use before this release) | e041d142 |
 | `stock/` | crDroid's original prebuilt, the baseline for every number below | 3005729e |
 

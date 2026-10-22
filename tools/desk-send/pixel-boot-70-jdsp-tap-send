@@ -1,0 +1,21 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# DESC: Boot hook (and manual start): JamesDSP desk-send tap -> Oppo desk speaker (UDP :1237).
+# TAGS: jamesdsp, audio, oppo, pixel, boot
+# vendor/JamesDSP SCOPE 2026-10-22 "Desk send". Idempotent via pidfile. Target in
+# ~/.config/jdsp-tap-send.env (TARGET=host:port, Tailscale address of the Oppo).
+# The HAL (uid audioserver) cannot create files in the JDSP app's files dir
+# (755, owned by system = this Termux uid): pre-create the ring file 0666 so
+# tap_shm_setup() only has to open + ftruncate it (same situation as bands.bin).
+TAP=/data/data/com.termux.jdsp/files/tap.bin
+[ -f "$TAP" ] || : > "$TAP"
+chmod 666 "$TAP" 2>/dev/null
+PIDFILE="$HOME/.local/share/jdsp-tap-send.pid"
+if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
+  exit 0
+fi
+TARGET=100.93.167.83:1237
+[ -f "$HOME/.config/jdsp-tap-send.env" ] && . "$HOME/.config/jdsp-tap-send.env"
+mkdir -p "$HOME/.local/share"
+setsid nohup "$HOME/bin/jdsp-tap-send" "$TARGET" </dev/null \
+  >> "$HOME/.local/share/jdsp-tap-send.log" 2>&1 &
+echo $! > "$PIDFILE"
