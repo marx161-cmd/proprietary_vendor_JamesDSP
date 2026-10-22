@@ -29,4 +29,6 @@ set -e
 m libjamesdspaidl ${EXTRA_TARGETS:-}
 SO="$TOP/out/target/product/blazer/vendor/lib64/soundfx/libjamesdspaidl.so"
 cp -p "$SO" "$RELDIR/libjamesdspaidl.so"
-sha256sum "$SRC" "$RELDIR/libjamesdspaidl.so" | tee "$RELDIR/SHA256SUMS"
+# Relative names only (no build-host paths in the published file): the engine .a is
+# listed by its variant-tagged basename, the .so by its own.
+{ sha256sum "$SRC" | sed "s| .*| libjamesdsp_engine_static.$VARIANT.a|"; (cd "$RELDIR" && sha256sum libjamesdspaidl.so); } | tee "$RELDIR/SHA256SUMS"

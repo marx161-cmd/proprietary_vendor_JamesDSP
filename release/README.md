@@ -16,7 +16,9 @@ comparison. Everything is built from source in the three repos listed at the end
 
 Both variants are built from one source tree; `full` is the CMake option
 `JDSP_LUA_BRIDGE=ON`. The C struct layout shared with the AIDL wrapper is identical
-in both, so either file drops in without a header re-sync.
+in both, so either file drops in without a header re-sync. Neither binary embeds a
+build-host path (`-ffile-prefix-map`); `SHA256SUMS` lists the `.so` and the engine
+archive it was linked from by bare file name.
 
 ## What changed vs stock (engine)
 
@@ -52,15 +54,16 @@ in both, so either file drops in without a header re-sync.
 - **Differential test against the real LSP plugins** (`bench/difftest/`): the same
   48 kHz signals through this `.so` on the phone (real AIDL/FMQ path) and through the
   Fedora `lsp-plugins-ladspa` build of the same plugins on a PC with identical settings.
-  Residual vs the real plugin (RMS, dBFS, final binaries, 2026-10-21): gate -110,
+  Residual vs the real plugin (RMS, dBFS, final binaries, 2026-10-22): gate -110,
   compressor -114, limiter (ALR on) -126, expander -108, autogain -89, loudness
-  compensator (FFT mode) -112, multiband compressor -79 (Classic) / -91 (Linear
-  Phase). Audio-only and full produce identical output. Two of these sit at the real
-  plugin's own float32 floor rather than at the port's: the compensator's IIR mode
-  (-30 dB) and the multiband compressor's Classic mode. Proof in both cases: the
-  unmodified x86 plugin differs from itself between an AVX2 and an SSE4.2 run by the
-  same amount (-31.5 dB IIR; -76.6 dB Classic, -91 dB Linear Phase), the residual
-  sitting in the low-frequency biquad sections (poles near |z| = 0.997).
+  compensator (FFT mode) -112, multiband compressor -79 (Classic) / -60 (Modern) /
+  -91 (Linear Phase). Audio-only and full produce identical output. Three of these
+  sit at the real plugin's own float32 floor rather than at the port's: the
+  compensator's IIR mode (-30 dB) and the multiband compressor's Classic and Modern
+  modes. Proof in each case: the unmodified x86 plugin differs from itself between an
+  AVX2 and an SSE4.2 run by the same amount (-31.5 dB IIR; -76.6 dB Classic, -61.9 dB
+  Modern, -91 dB Linear Phase), the residual sitting in the low-frequency biquad
+  sections (poles near |z| = 0.997).
 - **On-device CPU / power** (`bench/`): audio HAL process CPU and battery draw while
   playing the same track with the same user preset, stock vs audio-only vs full.
   Pixel 10 Pro, 60 s of the same track, screen off, unplugged, user preset

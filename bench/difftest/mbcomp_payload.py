@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Single source of truth for the mbcomp difftest settings (LSP Multiband
 Compressor stereo x8 port, AIDL cmd 10106, layout in lsp_wrap_mbcomp.h).
-  mbcomp_payload.py dut    classic|lp   -> the 218 payload floats, one per line
-  mbcomp_payload.py ladspa classic|lp   -> LADSPA 'port name=value' args, one per line
+  mbcomp_payload.py dut    classic|modern|lp -> the 218 payload floats, one per line
+  mbcomp_payload.py ladspa classic|modern|lp -> LADSPA 'port name=value' args, one per line
 Both views are generated from the same settings dict so the reference and the
-DUT can never drift apart. Settings: Classic (or Linear Phase) crossover, the
+DUT can never drift apart. Settings: Classic, Modern or Linear Phase mode, the
 default splits 2/4/6 enabled but split 4 moved 632 -> 800 Hz, four active
 bands (0, 2, 4, 6) with distinct thresholds/ratios/timings so every band is
 compressing, everything else at the real plugin defaults.
@@ -18,7 +18,7 @@ def lin(db): return 10 ** (db / 20)
 def lin0(db): return 0.0 if db <= MINUS_INF else lin(db)
 
 def settings(variant):
-    g = dict(mode={'classic': 0, 'lp': 2}[variant], g_in=0.0, g_out=0.0, g_dry=MINUS_INF, g_wet=0.0,
+    g = dict(mode={'classic': 0, 'modern': 1, 'lp': 2}[variant], g_in=0.0, g_out=0.0, g_dry=MINUS_INF, g_wet=0.0,
              drywet=100.0, react=0.2, shift=0.0, envb=1, ssplit=0)
     splits = [(0, 40.0), (1, 100.0), (0, 252.0), (1, 800.0), (0, 1587.0), (1, 3984.0), (0, 10000.0)]  # split 4: 632 -> 800 Hz
     bands = []

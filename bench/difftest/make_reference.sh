@@ -72,17 +72,24 @@ $R run limiter_stereo tmp_lc.wav ref_loudcomp.wav "${LIM_TRANSPARENT[@]}"
 #     -31.5 dB in IIR mode and -115.1 dB in FFT mode. Compare loudcomp_iir runs against ~-30 dB.
 $R run loud_comp_stereo loudcomp.wav tmp_lci.wav "${LC_COMMON[@]}" 'Processing mode=1'
 $R run limiter_stereo tmp_lci.wav ref_loudcomp_iir.wav "${LIM_TRANSPARENT[@]}"
-# --- mbcomp (Classic) / mbcomp_lp (Linear Phase): cmd 10106, 218 floats (see lsp_wrap_mbcomp.h).
+# --- mbcomp (Classic) / mbcomp_modern (Modern) / mbcomp_lp (Linear Phase): cmd 10106, 218 floats (see lsp_wrap_mbcomp.h).
 #     Settings come from mbcomp_payload.py (ONE source for this reference and run_dut.sh): default
 #     splits 2/4/6 on, split 4 moved 632 -> 800 Hz, bands 0/2/4/6 at -30/-28/-26/-32 dB with ratios
 #     4/3/6/2.5 and distinct attack/release, RMS sidechain 10 ms, Pink BT envelope boost, dry -inf,
 #     every other port at the real default (all 244 control inputs set explicitly, by exact name).
 #     Reference plugin: lsp-plugins 1.2.29 = mb_compressor 1.0.33, DSP identical to the port's 1.0.35.
 #     Linear Phase: both sides carry 1<<12 = 4096 samples of FFT crossover latency -> lag ~0.
+#     Modern (added 2026-10-22): per-band min-phase filter pairs instead of the LR4 crossover,
+#     no latency on either side; same band settings as the other two modes. EXPECTED FLOOR ~-60 dB:
+#     the same x86 plugin native (AVX2) vs qemu SSE4.2 differs from itself by -61.9 dB in Modern
+#     mode (port measured -59.5; residual 99.5 % below 252 Hz = the per-band low-frequency biquads).
 mapfile -t MBC_C  < <(python3 mbcomp_payload.py ladspa classic)
+mapfile -t MBC_M  < <(python3 mbcomp_payload.py ladspa modern)
 mapfile -t MBC_LP < <(python3 mbcomp_payload.py ladspa lp)
 $R run mb_compressor_stereo mbcomp.wav tmp_mbc.wav "${MBC_C[@]}"
 $R run limiter_stereo tmp_mbc.wav ref_mbcomp.wav "${LIM_TRANSPARENT[@]}"
+$R run mb_compressor_stereo mbcomp.wav tmp_mbcm.wav "${MBC_M[@]}"
+$R run limiter_stereo tmp_mbcm.wav ref_mbcomp_modern.wav "${LIM_TRANSPARENT[@]}"
 $R run mb_compressor_stereo mbcomp.wav tmp_mbclp.wav "${MBC_LP[@]}"
 $R run limiter_stereo tmp_mbclp.wav ref_mbcomp_lp.wav "${LIM_TRANSPARENT[@]}"
-rm -f tmp_gate.wav tmp_comp.wav tmp_exp.wav tmp_ag.wav tmp_lc.wav tmp_lci.wav tmp_mbc.wav tmp_mbclp.wav
+rm -f tmp_gate.wav tmp_comp.wav tmp_exp.wav tmp_ag.wav tmp_lc.wav tmp_lci.wav tmp_mbc.wav tmp_mbcm.wav tmp_mbclp.wav

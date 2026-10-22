@@ -2,7 +2,7 @@
 """Build the "Defaults (all modules)" JamesDSP preset (.tar for the app's preset library).
 
 Values: real LSP plugin defaults for the ported modules (gate, compander, expander,
-autogain), JamesDSP card defaults for everything else; every module off except the
+autogain, loudcomp, mbcomp), JamesDSP card defaults for everything else; every module off except the
 output limiter (the clip guard, default on). Push the result to
 /sdcard/Android/data/com.termux.jdsp/files/Presets/ and load it from the app.
 Format = RootlessJamesDSP Preset.kt v3: flat ustar tar of dsp_*.xml + a `metadata` entry.
@@ -27,13 +27,33 @@ FILES = {
  'dsp_expander.xml': [('expander_enable', False), ('expander_mode', '1'), ('expander_threshold', -12), ('expander_ratio', 4), ('expander_knee', 0.501), ('expander_attack', 20), ('expander_release', 100), ('expander_hold', 0)],
  'dsp_gate.xml': [('gate_enable', False), ('gate_open_threshold', -24), ('gate_close_threshold', -36), ('gate_attack', 20), ('gate_release', 100), ('gate_hold', 0), ('gate_reduction', -24)],
  'dsp_graphiceq.xml': [('geq_enable', False), ('geq_nodes', 'GraphicEQ: ')],
+ 'dsp_loudcomp.xml': [('loudcomp_enable', False), ('loudcomp_volume', 0), ('loudcomp_std', '4'), ('loudcomp_mode', '0'), ('loudcomp_fft', '4'), ('loudcomp_approx', '2'), ('loudcomp_input_gain', 0), ('loudcomp_hclip', False), ('loudcomp_hcrange', 6)],
  'dsp_liveprog.xml': [('liveprog_enable', False), ('liveprog_file', ''), ('lua_script', '')],
+ 'dsp_mbcomp.xml': None,   # generated below (215 keys), real mb_compressor defaults = app card defaults
  'dsp_output_control.xml': [('limiter_enable', True), ('limiter_threshold', -0.1), ('limiter_attack', 5), ('limiter_release', 5), ('limiter_knee', 1.0), ('output_postgain', 0)],
  'dsp_parametriceq.xml': [('peq_enable', False), ('peq_bands', 'PEQ: ')],
  'dsp_reverb.xml': [('reverb_enable', False), ('reverb_preset', '15')],
  'dsp_stereowide.xml': [('stereowide_enable', False), ('stereowide_mode', 60)],
  'dsp_tube.xml': [('tube_enable', False), ('tube_drive', 2)],
 }
+# Multiband compressor: 9 globals + 7 splits x 2 + 8 bands x 24, key names and defaults
+# exactly as dsp_mbcomp_preferences.xml / JamesDspBaseEngine.readMbCompParams() (2026-10-22).
+_SPLIT_EN = [False, True, False, True, False, True, False]
+_SPLIT_F = [40, 100, 252, 632, 1587, 3984, 10000]
+_BAND_LCF = [10, 40, 100, 252, 632, 1587, 3984, 10000]
+_BAND_HCF = [40, 100, 252, 632, 1587, 3984, 10000, 20000]
+_MB = [('mbcomp_enable', False), ('mbcomp_mode', '1'), ('mbcomp_input_gain', 0), ('mbcomp_output_gain', 0), ('mbcomp_dry_gain', -72),
+       ('mbcomp_wet_gain', 0), ('mbcomp_drywet', 100), ('mbcomp_envb', '1'), ('mbcomp_ssplit', False)]
+for _s in range(7):
+    _MB += [(f'mbcomp_split{_s + 1}_enable', _SPLIT_EN[_s]), (f'mbcomp_split{_s + 1}_freq', _SPLIT_F[_s])]
+for _b in range(8):
+    _k = f'mbcomp_b{_b}_'
+    _MB += [(_k + 'enable', True), (_k + 'solo', False), (_k + 'mute', False), (_k + 'cm', '0'),
+            (_k + 'al', -12), (_k + 'at', 20), (_k + 'rrl', -72), (_k + 'rt', 100), (_k + 'ht', 0),
+            (_k + 'cr', 1), (_k + 'kn', -6), (_k + 'mk', 0), (_k + 'bth', -72), (_k + 'bsa', 6),
+            (_k + 'scm', '1'), (_k + 'scs', '0'), (_k + 'sscs', '0'), (_k + 'sla', 0), (_k + 'scr', 10), (_k + 'scp', 0),
+            (_k + 'sclc', False), (_k + 'sclf', _BAND_LCF[_b]), (_k + 'schc', False), (_k + 'schf', _BAND_HCF[_b])]
+FILES['dsp_mbcomp.xml'] = _MB
 META = "version=3\napp_version=1.6.15\napp_flavor=rootFdroid\nliveprog_included=false\nmin_version_code=26"
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), 'Defaults (all modules).tar')
 with tarfile.open(out, 'w', format=tarfile.USTAR_FORMAT) as tf:

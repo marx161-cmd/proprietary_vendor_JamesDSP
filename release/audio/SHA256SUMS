@@ -1,2 +1,2 @@
-89b62e8d62e71623e2195212d84974875c88e353a7c234f8c4f2d90b0c09885e  /home/comrade/builds/android/JamesDSP-src/app/.cxx-variants/audio/arm64-v8a/libjamesdsp_engine_static.a
-7a689fb300080aa44abe7b0e3ade235a223da8734673b52ea9eb0eabcca4060d  /home/comrade/homelab/crDroid/vendor/JamesDSP/release/audio/libjamesdspaidl.so
+e4b86fcb63f7777e0a068ee674e59922ac56b16839a88d41fd9e22cb99f32fd8 libjamesdsp_engine_static.audio.a
+091471284b8734947e1bf61596e296299e4195e8fe4af343ab6c54dfdd41e02e  libjamesdspaidl.so
