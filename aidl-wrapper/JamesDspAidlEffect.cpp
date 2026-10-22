@@ -1,7 +1,10 @@
 #include <algorithm>
+#include <cerrno>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
+#include <sched.h>
 
 #define LOG_TAG "AHAL_JamesDspEffect"
 #include <android-base/logging.h>
@@ -315,7 +318,32 @@ RetCode JamesDspAidlEffect::releaseContext() {
     return RetCode::SUCCESS;
 }
 
+// Realtime scheduling for the effect's own process thread (2026-10-22).
+// The framework's EffectThread creates it as plain SCHED_OTHER at nice -19;
+// measured on the phone with the user's preset: 70 % of its context switches
+// were involuntary preemptions while it used 64-84 % of a small core clocked
+// at 400-730 MHz -> audible crackle under load. This vendor HAL's init.rc
+// grants `rlimit rtprio 10 10`, the same allowance the engine's convolver
+// tail workers already use (SCHED_FIFO 2). Priority 5: above those workers,
+// below the hard cap, so nothing ordinary preempts the audio chain any more
+// and schedutil runs the core at full clock while it is busy. Asked once per
+// thread on the first process call; a refusal (sepolicy variant, missing
+// rlimit) leaves the default scheduling in place, as before.
+static void requestRealtimeOnce() {
+    static thread_local bool done = false;
+    if (done) return;
+    done = true;
+    sched_param param{};
+    param.sched_priority = 5;
+    if (sched_setscheduler(0, SCHED_FIFO, &param) == 0) {
+        LOG(INFO) << "process thread switched to SCHED_FIFO priority " << param.sched_priority;
+    } else {
+        LOG(WARNING) << "SCHED_FIFO request refused (" << strerror(errno) << "), keeping default scheduling";
+    }
+}
+
 IEffect::Status JamesDspAidlEffect::effectProcessImpl(float* in, float* out, int samples) {
+    requestRealtimeOnce();
     if (!mContext) {
         LOG(ERROR) << __func__ << " null context, passthrough";
         for (int i = 0; i < samples; i++) {

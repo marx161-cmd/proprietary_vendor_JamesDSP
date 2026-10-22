@@ -10,7 +10,7 @@ comparison. Everything is built from source in the three repos listed at the end
 | dir | what | sha256 (first 8) |
 |---|---|---|
 | `audio/` | **audio-only**: the DSP changes below, nothing else. No Lua interpreter, no analysis meter, no file I/O from inside the effect. | see `audio/SHA256SUMS` |
-| `full/` | audio-only + embedded Lua 5.4 bridge + 108-band chroma meter written to a shared file for a live-wallpaper consumer. Only useful with that consumer. | see `full/SHA256SUMS` |
+| `full/` | audio-only + embedded Lua 5.4 bridge + 108-band meter written to a shared file for a live-wallpaper consumer (since 2026-10-22: Butterworth bank with the same design as comrade's EasyEffects shader_bands plugin, plus a dB-mapped frame and rms/named-range/centroid/flux/onset features, `bands.bin` v3). Only useful with that consumer. | see `full/SHA256SUMS` |
 | `full-shipped/` | the `full` build as shipped in the 2026-10-10 OTA (11 days daily use before this release) | e041d142 |
 | `stock/` | crDroid's original prebuilt, the baseline for every number below | 3005729e |
 
@@ -48,6 +48,13 @@ archive it was linked from by bare file name.
    `update_settings()`, the real LSP host structure); no global mutex on the dynamics
    path any more. Chain-reset use-after-free fix, zero-length vendor-parameter guard.
 6. FTZ/DAZ denormal flush on the processing thread.
+7. **Realtime scheduling for the effect's own process thread** (2026-10-22). The
+   framework creates it as an ordinary nice -19 thread; measured on the phone it was
+   preempted on 70 % of its context switches while using 64-84 % of a small core clocked
+   at 400-730 MHz, which is audible crackle under load. The wrapper now asks for
+   SCHED_FIFO priority 5 on the first process call (the HAL's init.rc grants rtprio 10,
+   the same allowance the convolver's tail workers already use) and keeps the default
+   scheduling if refused.
 
 ## Verification (details in `../bench/`)
 
@@ -75,6 +82,9 @@ archive it was linked from by bare file name.
   | stock | 60.9 | 2184 mW |
   | audio-only | 23.9 | 1764 mW |
   | full (meter + Lua bridge) | 27.7 | 1824 mW |
+
+  The full row predates the 2026-10-22 meter redesign (336 biquads per sample instead of
+  108, plus seven named-range filters); re-measure before quoting it for the current build.
 
   The CPU column is the HAL process's utime+stime over the window; the draw column is
   the battery fuel gauge (everything on the phone, not just audio), one run each. The
