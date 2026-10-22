@@ -302,13 +302,17 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // --stress: a second thread re-configures gate/compressor/limiter/loudcomp
+    // --stress: a second thread re-configures gate/compressor/limiter/loudcomp/mbcomp
     // with random values ~1000x/s for the whole run, the way a user dragging
     // sliders (or a Lua script) would, while this thread pushes audio. Exercises
     // the control->audio parameter handoff (rt_config.h) and the limiter
     // configure/process race fixed 2026-10-21; for loudcomp (cmd 10105,
     // 2026-10-22) also the FFT rank / FFT<->IIR / curve switching that the
-    // audio thread applies itself. Pass = no crash, finite output.
+    // audio thread applies itself; for the multiband compressor (cmd 10106,
+    // 2026-10-22) the mode switches (Classic/Modern/Linear Phase), split
+    // moves/toggles (plan rebuilds) and per-band compressor/sidechain
+    // retunes, all 218 floats randomised within the real metadata ranges.
+    // Pass = no crash, finite output.
     std::atomic<bool> stressRun{stress};
     std::atomic<long> stressCount{0};
     std::thread stressThread;
@@ -328,7 +332,7 @@ int main(int argc, char** argv) {
             std::mt19937 rng(161);
             std::uniform_real_distribution<float> u(0.0f, 1.0f);
             while (stressRun.load()) {
-                const int which = static_cast<int>(stressCount.load() % 4);
+                const int which = static_cast<int>(stressCount.load() % 5);
                 bool ok = true;
                 if (which == 0)
                     ok = sendCmd(1500, {-12.0f * u(rng) - 0.1f, 0.25f + 19.0f * u(rng), 0.25f + 19.0f * u(rng), u(rng), 0.0f, 1.0f});
@@ -336,10 +340,51 @@ int main(int argc, char** argv) {
                     ok = sendCmd(10100, {0.0f, 1.0f, -60.0f * u(rng), -80.0f * u(rng), 2000.0f * u(rng), 5000.0f * u(rng), 1000.0f * u(rng), -72.0f * u(rng)});
                 else if (which == 2)
                     ok = sendCmd(10101, {0.0f, 1.0f, -60.0f * u(rng), 1.0f + 99.0f * u(rng), 1.2f * u(rng) - 0.1f, 2000.0f * u(rng), 5000.0f * u(rng), 1000.0f * u(rng)});
-                else // loudcomp: [band, en, in gain dB, mode, std, fft idx, approx, volume phons, hclip, hcrange dB]
+                else if (which == 3) // loudcomp: [band, en, in gain dB, mode, std, fft idx, approx, volume phons, hclip, hcrange dB]
                     ok = sendCmd(10105, {0.0f, 1.0f, 48.0f * u(rng) - 24.0f, std::floor(2.0f * u(rng)), std::floor(5.0f * u(rng)),
                                          std::floor(7.0f * u(rng)), std::floor(5.0f * u(rng)), 90.0f * u(rng) - 83.0f,
                                          std::floor(2.0f * u(rng)), 24.0f * u(rng)});
+                else { // mbcomp: [band, en, 10 globals, 7 x (split en, freq Hz), 8 x 24 band params] (lsp_wrap_mbcomp.h)
+                    std::vector<float> v;
+                    v.reserve(218);
+                    auto sw = [&] { return std::floor(2.0f * u(rng)); };
+                    auto lg = [&](float lo, float hi) { return lo * std::pow(hi / lo, u(rng)); };   // log-spaced Hz
+                    v.insert(v.end(), {0.0f, 1.0f,
+                        std::floor(3.0f * u(rng)),              // mode 0..2
+                        40.0f * u(rng) - 20.0f,                 // in gain dB
+                        40.0f * u(rng) - 20.0f,                 // out gain dB
+                        92.0f * u(rng) - 72.0f,                 // dry gain dB (-72 .. +20)
+                        40.0f * u(rng) - 20.0f,                 // wet gain dB
+                        100.0f * u(rng),                        // dry/wet %
+                        u(rng),                                 // reactivity 0..1
+                        40.0f * u(rng) - 20.0f,                 // shift dB
+                        std::floor(5.0f * u(rng)),              // envelope boost 0..4
+                        sw()});                                 // stereo split
+                    for (int s = 0; s < 7; ++s) { v.push_back(sw()); v.push_back(lg(10.0f, 20000.0f)); }
+                    for (int b = 0; b < 8; ++b) {
+                        v.insert(v.end(), {sw(), sw(), sw(),
+                            std::floor(3.0f * u(rng)),          // cm 0..2
+                            std::floor(4.0f * u(rng)),          // scm 0..3
+                            std::floor(6.0f * u(rng)),          // scs 0..5
+                            std::floor(6.0f * u(rng)),          // sscs 0..5
+                            20.0f * u(rng),                     // lookahead ms
+                            250.0f * u(rng),                    // sc reactivity ms
+                            80.0f * u(rng) - 40.0f,             // sc preamp dB
+                            sw(), sw(),                         // lo-cut / hi-cut on
+                            lg(10.0f, 20000.0f), lg(10.0f, 20000.0f),
+                            -60.0f * u(rng),                    // attack level dB
+                            2000.0f * u(rng),                   // attack ms
+                            108.0f * u(rng) - 72.0f,            // release level dB (-72 .. +36)
+                            5000.0f * u(rng),                   // release ms
+                            1.0f + 99.0f * u(rng),              // ratio
+                            -24.0f * u(rng),                    // knee dB
+                            120.0f * u(rng) - 60.0f,            // makeup dB
+                            -120.0f + 60.0f * u(rng),           // boost threshold dB
+                            144.0f * u(rng) - 72.0f,            // boost signal dB
+                            1000.0f * u(rng)});                 // hold ms
+                    }
+                    ok = sendCmd(10106, v);
+                }
                 if (!ok) fprintf(stderr, "stress: setParameter failed\n");
                 stressCount++;
                 std::this_thread::sleep_for(std::chrono::microseconds(100));

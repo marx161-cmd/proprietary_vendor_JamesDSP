@@ -7,6 +7,10 @@ One file per module so each comparison isolates one algorithm:
   loudcomp.wav pink noise at -30 dBFS under a 20 Hz..20 kHz exponential sine sweep at
                -24 dBFS; the sweep walks the whole equal-loudness curve, peak ~-20 dBFS
                so even +10 dB of curve gain stays clear of the output limiter's ALR knee
+  mbcomp.wav   pink noise at -30 dBFS plus three independently gated tone bursts (80 Hz
+               -14 dBFS, 1 kHz -16 dBFS, 6 kHz -20 dBFS, incommensurate periods) so the
+               multiband compressor's bands 1/2/3/4 (0..100, 100..800, 800..3984, >3984 Hz)
+               each see their own level swings; peak ~-6.2 dBFS
 Peaks stay < -6 dBFS in gate.wav/comp.wav so an always-on limiter at -0.09 dB never engages.
 """
 import numpy as np, soundfile as sf, os
@@ -59,5 +63,16 @@ f0, f1, T = 20.0, 20000.0, 10.0
 phase = 2*np.pi*f0*T/np.log(f1/f0)*(np.exp(t/T*np.log(f1/f0)) - 1)
 lc = pink(n)*db(-30) + db(-24)*np.sin(phase)
 sf.write(f"{out}/loudcomp.wav", stereo(lc), sr, subtype='FLOAT')
-for f in ("gate","comp","limiter","loudcomp"):
+# mbcomp: 10 s pink at -30 dBFS + gated 80 Hz / 1 kHz / 6 kHz bursts (appended after
+# loudcomp so the rng stream, hence every file above, is unchanged)
+n = sr*10; t = np.arange(n)/sr
+def gate_env(period, on):
+    e = ((t % period) < on).astype(float)
+    return np.convolve(e, np.ones(96)/96, mode='same')      # 2 ms edges
+mb = pink(n)*db(-30)
+mb += db(-14)*np.sin(2*np.pi*80*t)*gate_env(1.0, 0.3)
+mb += db(-16)*np.sin(2*np.pi*1000*t)*gate_env(0.7, 0.25)
+mb += db(-20)*np.sin(2*np.pi*6000*t)*gate_env(0.45, 0.2)
+sf.write(f"{out}/mbcomp.wav", stereo(mb), sr, subtype='FLOAT')
+for f in ("gate","comp","limiter","loudcomp","mbcomp"):
     d, _ = sf.read(f"{out}/{f}.wav"); print(f, d.shape, "peak dBFS %.1f" % (20*np.log10(np.max(np.abs(d)))))
