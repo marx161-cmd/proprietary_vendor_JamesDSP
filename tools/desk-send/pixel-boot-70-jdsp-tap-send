@@ -13,8 +13,9 @@ PIDFILE="$HOME/.local/share/jdsp-tap-send.pid"
 if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
   exit 0
 fi
-TARGET=100.93.167.83:1237
+TARGET=""
 [ -f "$HOME/.config/jdsp-tap-send.env" ] && . "$HOME/.config/jdsp-tap-send.env"
+[ -n "$TARGET" ] || { echo "jdsp-tap-send: set TARGET=host:port in ~/.config/jdsp-tap-send.env" >&2; exit 1; }
 mkdir -p "$HOME/.local/share"
 setsid nohup "$HOME/bin/jdsp-tap-send" "$TARGET" </dev/null \
   >> "$HOME/.local/share/jdsp-tap-send.log" 2>&1 &
