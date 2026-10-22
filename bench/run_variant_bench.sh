@@ -30,6 +30,10 @@ for i in $(seq 1 30); do
 done
 sleep 6
 $ADB shell "am force-stop com.termux.vlc; am force-stop com.termux.jdsp" >/dev/null 2>&1
+# The streaming client (Diana / Moonlight fork) keeps a dead audioserver
+# connection after the HAL restart ("Cannot create AudioTrack" on the next
+# stream start, seen 2026-10-22); stop it so it comes back fresh when opened.
+$ADB shell "am force-stop com.termux.diana.root.noir" >/dev/null 2>&1
 $ADB shell "am start -W -n $JDSP_ACT" >/dev/null 2>&1
 sleep 4
 $ADB shell "am start -W -a android.intent.action.VIEW -d file:///sdcard/Music/bench_track.wav -t audio/x-wav -n $VLC_ACT" >/dev/null 2>&1
